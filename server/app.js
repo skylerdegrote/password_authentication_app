@@ -12,86 +12,90 @@ var localStrategy = require("passport-local").Strategy;
 var mongoose = require("mongoose");
 var User = require('./models/user');
 var register = require('./routes/register');
+var bodyParser = require('body-parser');
+var mongoURI = 'mongodb://localhost:27017/passport_authentication';
+var mongoDB = mongoose.connect(mongoURI).connection;
 
 
+//Setting up Mongo communication
+mongoDB.on('error', function(err){
+    if(err){
+        console.log("Mongo Error: ", err);
+    }
+});
 
+mongoDB.once('open', function(){
+    console.log("Connected To MongoDB");
+});
+
+//Body Parser
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({expanded:true}));
+
+//setting the port
 app.set("port", (process.env.PORT || 5000));
 
-// The most widely used way for websites to authenticate users is via a username and password.
-// Support for this mechanism is provided by the “passport-local” module.
-
+//passport
 app.use(session({
-   secret: "secret",
-   key:"user",
-   resave: true,
-   s: false,
-   cookie:{maxAge:60000, secure:false}
+    secret:"secret",
+    key:"user",
+    resave:true,
+    s:false,
+    cookie:{maxAge:60000, secure:false}
 }));
-
 app.use(passport.initialize());
 app.use(passport.session());
-app.use('/register', register);
 
-
-//The verify callback for local authentication accepts username and password arguments,
-// which are submitted to the application via a login form. Inside this form we’ll authenticate users.
-app.use("local", new localStrategy({
-   passReqToCallback: true,
-   usernameField: "username"
-},
-    function(req, username, password, done){
-
-    }));
-
-//mongo setup
-var mongoURI = "mongodb://localhost:27017/prime_example_passport";
-var MongoDB = mongoose.connect(mongoURI).connection;
-
-MongoDB.on('error', function (err) {
-   console.log('mongodb connection error', err);
+passport.serializeUser(function(user, done){
+    done(null, user.id);
 });
-
-MongoDB.once('open', function () {
-   console.log('mongodb connection open');
-});
-
-passport.serializeUser(function(user, done) {
-   done(null, user.id);
-});
-
-passport.deserializeUser(function(id, done) {
-   User.findById(id, function(err,user){
-      if(err) done(err);
-      done(null,user);
-   });
+passport.deserializeUser(function(id, done){
+    User.findById(id, function(err, user){
+        if(err) done(err);
+        done(null, user);
+    });
 });
 
 passport.use('local', new localStrategy({
-       passReqToCallback : true,
-       usernameField: 'username'
-    },
+        passReqToCallback : true,
+        usernameField : 'username'},
     function(req, username, password, done){
-       User.findOne({ username: username }, function(err, user) {
-          if (err) throw err;
-          if (!user)
-             return done(null, false, {message: 'Incorrect username and password.'});
+        User.findOne({username: username}, function(err, user){
+            if(err) throw err;
+            if(!user) return done(null, false, {message: 'Incorrect username and password.'});
+            user.comparePassword(password, function(err, isMatch){
+                if(err) throw err;
+                if(isMatch) return done(null, user);
+                else done(null, false, {message: 'Incorrect username and password.'});
+            });
+        });
+    }
+));
 
-          // test a matching password
-          user.comparePassword(password, function(err, isMatch) {
-             if (err) throw err;
-             if(isMatch)
-                return done(null, user);
-             else
-                done(null, false, { message: 'Incorrect username and password.' });
-          });
-       });
-    }));
+
+//routing
+app.use("/register", register);
 
 app.use("/", index);
-
-//the wild card/ (always has to be last)
-
 app.listen(app.get("port"), function(){
-   console.log("Listening to port: "+app.get("port"));
+    console.log("Listening to port: "+app.get("port"));
 });
+
+module.exports = app;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -10,15 +10,15 @@ var path = require('path');
 var Users = require('../models/user');
 
 router.get('/', function(req, res, next){
-    res.sendFile(path.resolve(__dirname, '../views/register.html'));
+    res.sendFile(path.resolve(__dirname, '../public/views/register.html'));
 });
 
 router.post('/', function(req,res,next) {
     Users.create(req.body, function (err, post) {
         if (err)
-            next(err);
+            next("That user already exists");
         else
-            res.redirect('/users');
+            res.redirect('/views/users.html');
     })
 });
 
